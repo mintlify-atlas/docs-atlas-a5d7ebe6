@@ -1,0 +1,102 @@
+{
+  "projectType": "saas",
+  "projectName": "Magic Film",
+  "projectDescription": "A web platform that generates adaptive AI-powered cinematographic analysis for movies, detecting whether they are mainstream entertainment or auteur cinema and delivering tailored structured analysis in Spanish.",
+  "theme": "almond",
+  "primaryColor": "#F5A623",
+  "lightColor": "#FFF8ED",
+  "darkColor": "#1A0F00",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "architecture"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/analysis-modes",
+              "features/movie-search",
+              "features/user-profiles",
+              "features/favorites"
+            ]
+          },
+          {
+            "group": "User Roles",
+            "pages": [
+              "roles/overview",
+              "roles/guest",
+              "roles/registered",
+              "roles/admin"
+            ]
+          },
+          {
+            "group": "Setup & Configuration",
+            "pages": [
+              "setup/installation",
+              "setup/environment-variables",
+              "setup/database"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/tmdb",
+              "integrations/gemini",
+              "integrations/jwt-auth"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["api/overview"]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/auth",
+              "api/movies",
+              "api/analysis",
+              "api/users",
+              "api/admin"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Adaptive AI analysis: automatically classifies films as mainstream entertainment or auteur/deep cinema",
+    "Two distinct analysis modes: Entertainment (epic moments, easter eggs, trivia) and Deep (symbolism, themes, director style, cultural context)",
+    "Google Gemini 1.5 Flash integration for AI-generated analysis in Spanish",
+    "TMDB API integration for movie metadata, genres, and keywords",
+    "Analysis caching: generated analyses are stored in MySQL to avoid redundant API calls",
+    "Personalized recommendations based on user genre preferences and cinephile level",
+    "User onboarding flow with cinephile level selection (Explorer, Enthusiast, Expert)",
+    "Favorites system and search history per user",
+    "Admin panel for movie catalog management and analysis regeneration",
+    "JWT-based authentication with role-based access control (guest, registered, admin)"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register — Register new user",
+    "POST /api/auth/login — Authenticate user and receive JWT",
+    "GET /api/peliculas/buscar?q= — Search movies via TMDB",
+    "GET /api/peliculas/:id — Get movie details",
+    "POST /api/analisis/generar — Generate AI analysis for a movie",
+    "GET /api/analisis/:peliculaId — Retrieve stored analysis for a movie",
+    "GET /api/usuarios/perfil — Get current user profile",
+    "PUT /api/usuarios/perfil — Update user profile and genre preferences",
+    "POST /api/usuarios/favoritos — Add movie to favorites",
+    "DELETE /api/usuarios/favoritos/:id — Remove movie from favorites",
+    "GET /api/admin/peliculas — List all movies (admin only)",
+    "POST /api/admin/peliculas — Add movie to catalog (admin only)",
+    "PUT /api/admin/analisis/:id/regenerar — Force regenerate AI analysis (admin only)"
+  ]
+}
