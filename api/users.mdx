@@ -1,0 +1,251 @@
+---
+title: "User endpoints"
+description: "Profile management, favorites, and search history"
+---
+
+User endpoints let authenticated users view and update their profile, manage favorite movies, and configure their preferences. All endpoints require a valid bearer token.
+
+---
+
+## GET /api/usuarios/perfil
+
+Retrieve the profile of the currently authenticated user.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from login or registration.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="id" type="number">
+      Internal user ID.
+    </ResponseField>
+    <ResponseField name="nombre_usuario" type="string">
+      Username handle.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="nombre_completo" type="string">
+      Full display name.
+    </ResponseField>
+    <ResponseField name="rol" type="string">
+      User role: `registrado` or `admin`.
+    </ResponseField>
+    <ResponseField name="nivel_cinefilo" type="string">
+      Cinephile level: `explorador`, `entusiasta`, or `experto`. `null` if not set during onboarding.
+    </ResponseField>
+    <ResponseField name="onboarding_completo" type="boolean">
+      Whether the user has completed the onboarding flow.
+    </ResponseField>
+    <ResponseField name="generos_favoritos" type="object[]">
+      Array of preferred genre objects selected during onboarding or profile update.
+    </ResponseField>
+    <ResponseField name="peliculas_guardadas" type="number">
+      Count of movies saved to favorites.
+    </ResponseField>
+    <ResponseField name="analisis_leidos" type="number">
+      Count of analyses read by this user.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl --request GET \
+  --url http://localhost:3000/api/usuarios/perfil \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "nombre_usuario": "anagarcia",
+    "email": "ana@example.com",
+    "nombre_completo": "Ana García",
+    "rol": "registrado",
+    "nivel_cinefilo": "entusiasta",
+    "onboarding_completo": true,
+    "generos_favoritos": [
+      { "id": 2, "nombre": "Drama" },
+      { "id": 8, "nombre": "Psicológico" }
+    ],
+    "peliculas_guardadas": 5,
+    "analisis_leidos": 12
+  }
+}
+```
+
+---
+
+## PUT /api/usuarios/perfil
+
+Update profile fields for the currently authenticated user. All body fields are optional — only provided fields are updated.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from login or registration.
+</ParamField>
+
+### Request body
+
+<ParamField body="nombre_completo" type="string">
+  Updated full display name.
+</ParamField>
+
+<ParamField body="nivel_cinefilo" type="string">
+  Cinephile level. Accepted values: `explorador`, `entusiasta`, `experto`.
+</ParamField>
+
+<ParamField body="generos_favoritos" type="integer[]">
+  Array of genre IDs to set as preferred genres. Replaces the existing selection. Genre IDs are the `id` values from the `generos` table (1–12 for the default seeded genres).
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on a successful update.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  The updated profile object. Same shape as the `GET /api/usuarios/perfil` response `data` field.
+</ResponseField>
+
+### Example
+
+```bash
+curl --request PUT \
+  --url http://localhost:3000/api/usuarios/perfil \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "nivel_cinefilo": "experto",
+    "generos_favoritos": [2, 6, 8]
+  }'
+```
+
+---
+
+## POST /api/usuarios/favoritos
+
+Add a movie to the authenticated user's favorites.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from login or registration.
+</ParamField>
+
+### Request body
+
+<ParamField body="pelicula_id" type="integer" required>
+  Internal ID of the movie to save.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the movie is added.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">
+      Favorites record ID. Use this to remove the movie later.
+    </ResponseField>
+    <ResponseField name="pelicula_id" type="number">
+      ID of the saved movie.
+    </ResponseField>
+    <ResponseField name="guardado_en" type="string">
+      ISO 8601 timestamp of when the movie was saved.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `409` | This movie is already in the user's favorites. |
+
+### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:3000/api/usuarios/favoritos \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/json' \
+  --data '{"pelicula_id": 1}'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 18,
+    "pelicula_id": 1,
+    "guardado_en": "2026-03-15T11:00:00.000Z"
+  }
+}
+```
+
+---
+
+## DELETE /api/usuarios/favoritos/:id
+
+Remove a movie from the authenticated user's favorites.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from login or registration.
+</ParamField>
+
+### Path parameters
+
+<ParamField path="id" type="integer" required>
+  The favorites record ID returned when the movie was added. This is not the movie ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the favorite is removed.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Removed from favorites"`.
+</ResponseField>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `404` | No favorite record found with this ID, or it does not belong to the authenticated user. |
+
+### Example
+
+```bash
+curl --request DELETE \
+  --url http://localhost:3000/api/usuarios/favoritos/18 \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+```json
+{
+  "success": true,
+  "message": "Removed from favorites"
+}
+```

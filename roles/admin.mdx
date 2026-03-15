@@ -1,0 +1,101 @@
+---
+title: "Admin panel"
+description: "Full catalog and analysis management for administrators"
+---
+
+Administrators have unrestricted access to catalog management, AI analysis controls, and system monitoring. Every action an admin takes is permanently recorded in the `historial_admin` audit log.
+
+<Warning>
+  The database seed creates a default admin account with username `admin` and email `admin@magicfilm.com`. The password hash is set to `HASH_PENDIENTE` in development. **Change the admin credentials before deploying to production.**
+</Warning>
+
+## Admin capabilities
+
+<Columns cols={2}>
+  <Card title="Catalog management" icon="film">
+    Add, update, and remove films from the catalog via `GET /api/admin/peliculas` and `POST /api/admin/peliculas`.
+  </Card>
+  <Card title="Force-regenerate analyses" icon="rotate">
+    Trigger a fresh AI analysis for any film, bypassing the cache. Uses `PUT /api/admin/analisis/:id/regenerar`.
+  </Card>
+  <Card title="Classifier overrides" icon="tag">
+    Set `tipo_forzado = TRUE` on a film to permanently pin its analysis type (`entretenimiento` or `profundo`), overriding the automatic classifier.
+  </Card>
+  <Card title="Audit log" icon="list-check">
+    Browse `historial_admin` to see every admin action with full context: who did what, to which entity, and when.
+  </Card>
+</Columns>
+
+## Admin-only endpoints
+
+All admin routes are protected by two middleware layers: `authMiddleware` (JWT validation) followed by `adminOnly` (role check). Any request from a non-admin user returns `403 Forbidden`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/peliculas` | List all films with management metadata |
+| `POST` | `/api/admin/peliculas` | Add a new film to the catalog |
+| `PUT` | `/api/admin/analisis/:id/regenerar` | Force-regenerate the AI analysis for a film |
+
+## Audit log: `historial_admin`
+
+Every admin action is inserted into `historial_admin` automatically. The table structure is:
+
+```sql schema.sql
+CREATE TABLE historial_admin (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  admin_id    INT UNSIGNED NOT NULL,
+  accion      ENUM('agregar','modificar','eliminar','regenerar_ia') NOT NULL,
+  entidad     VARCHAR(50) NOT NULL,
+  entidad_id  INT UNSIGNED,
+  detalle     VARCHAR(500),
+  realizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (admin_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+```
+
+| Column | Description |
+|--------|-------------|
+| `admin_id` | The ID of the admin who performed the action |
+| `accion` | One of: `agregar`, `modificar`, `eliminar`, `regenerar_ia` |
+| `entidad` | The affected entity type (e.g. `pelicula`, `analisis`) |
+| `entidad_id` | The ID of the specific record affected |
+| `detalle` | Free-text description of the action |
+| `realizado_en` | Timestamp of the action |
+
+## Classifier overrides with `tipo_forzado`
+
+By default, the internal classifier automatically assigns `tipo_analisis` (`entretenimiento` or `profundo`) to each film based on its genres and keywords from TMDB. Admins can permanently override this decision by setting the `tipo_forzado` flag on a film:
+
+```sql
+-- Pin a film to deep analysis mode permanently
+UPDATE peliculas SET tipo_analisis = 'profundo', tipo_forzado = TRUE WHERE id = 42;
+```
+
+When `tipo_forzado = TRUE`, the classifier skips that film and always uses the manually set value. This override persists across analysis regenerations.
+
+## Assigning the admin role
+
+The `admin` role cannot be self-assigned. It must be set directly in the database:
+
+```sql
+UPDATE usuarios SET rol = 'admin' WHERE email = 'user@example.com';
+```
+
+The database seed in `schema.sql` provisions one default admin account for development:
+
+```sql schema.sql
+INSERT INTO usuarios (
+  nombre_usuario, email, password_hash, nombre_completo, rol, onboarding_completo
+) VALUES (
+  'admin',
+  'admin@magicfilm.com',
+  'HASH_PENDIENTE',
+  'Administrador Magic Film',
+  'admin',
+  TRUE
+);
+```
+
+<Warning>
+  `HASH_PENDIENTE` is a placeholder. The default admin account has no valid password until you replace it with a proper bcrypt hash. Do this before running the application in any environment accessible over a network.
+</Warning>

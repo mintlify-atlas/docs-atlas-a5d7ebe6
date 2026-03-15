@@ -1,0 +1,174 @@
+---
+title: "Auth endpoints"
+description: "Register, login, and authentication endpoints"
+---
+
+Auth endpoints handle user registration and login. Both endpoints return a JWT that you include in the `Authorization` header for all protected requests.
+
+---
+
+## POST /api/auth/register
+
+Create a new user account. The account is created with the `registrado` role by default.
+
+### Request body
+
+<ParamField body="nombre_completo" type="string" required>
+  Full display name of the user.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address. Must be unique across all accounts.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Account password. Stored as a bcrypt hash — never in plain text.
+</ParamField>
+
+<ParamField body="nombre_usuario" type="string" required>
+  Username handle. Must be unique across all accounts.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on a successful registration.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">
+      Internal user ID.
+    </ResponseField>
+    <ResponseField name="nombre_usuario" type="string">
+      The registered username.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      The registered email address.
+    </ResponseField>
+    <ResponseField name="rol" type="string">
+      User role. Always `registrado` for new accounts.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="token" type="string" required>
+  JWT bearer token. Valid for 7 days.
+</ResponseField>
+
+<Note>
+  All new accounts are created with the `registrado` role. The `admin` role can only be assigned directly in the database.
+</Note>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `400` | One or more required fields are missing. |
+| `409` | The email or username is already taken. |
+
+### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:3000/api/auth/register \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "nombre_completo": "Ana García",
+    "email": "ana@example.com",
+    "password": "securepassword",
+    "nombre_usuario": "anagarcia"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "nombre_usuario": "anagarcia",
+    "email": "ana@example.com",
+    "rol": "registrado"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+---
+
+## POST /api/auth/login
+
+Authenticate with an existing account. Returns a fresh token on success.
+
+### Request body
+
+<ParamField body="email" type="string" required>
+  The email address used at registration.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on successful authentication.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">
+      Internal user ID.
+    </ResponseField>
+    <ResponseField name="nombre_usuario" type="string">
+      Username.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="rol" type="string">
+      User role: `registrado` or `admin`.
+    </ResponseField>
+    <ResponseField name="nivel_cinefilo" type="string">
+      Cinephile level: `explorador`, `entusiasta`, or `experto`. `null` if not set.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="token" type="string" required>
+  JWT bearer token. Valid for 7 days. Store this client-side and include it in the `Authorization` header for subsequent requests.
+</ResponseField>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `400` | Email or password field is missing. |
+| `401` | Invalid email or password. |
+
+### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:3000/api/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "ana@example.com",
+    "password": "securepassword"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "nombre_usuario": "anagarcia",
+    "email": "ana@example.com",
+    "rol": "registrado",
+    "nivel_cinefilo": "entusiasta"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```

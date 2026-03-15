@@ -1,0 +1,154 @@
+---
+title: "Database setup"
+description: "MySQL schema, tables, indexes, and seed data for Magic Film"
+---
+
+Magic Film uses **MySQL 8+** as its primary data store. All tables use the `utf8mb4` character set with the `utf8mb4_unicode_ci` collation to support full Unicode content including non-Latin characters.
+
+## Create the database
+
+```sql
+CREATE DATABASE IF NOT EXISTS magic_filmv01
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+## Run the schema
+
+Apply the full schema (tables, indexes, and seed data) in one command:
+
+```bash
+mysql -u root -p magic_filmv01 < database/schema.sql
+```
+
+The script is idempotent — it uses `CREATE DATABASE IF NOT EXISTS` at the top, so re-running it on a fresh database is safe.
+
+## Tables
+
+The schema defines 11 tables organized into three logical groups.
+
+### Reference data
+
+<CardGroup cols={2}>
+  <Card title="generos" icon="tag">
+    Movie genre reference data. Seeded with 12 genres on first run.
+  </Card>
+</CardGroup>
+
+### User data
+
+<CardGroup cols={2}>
+  <Card title="usuarios" icon="user">
+    User accounts. Stores credentials (bcrypt hash), role (`invitado`, `registrado`, `admin`), cinephile level (`explorador`, `entusiasta`, `experto`), and onboarding state.
+  </Card>
+  <Card title="usuario_generos" icon="link">
+    N:M join table linking users to their favorite genres, set during onboarding.
+  </Card>
+  <Card title="favoritos" icon="heart">
+    User-movie favorites. Enforces a unique constraint per user/movie pair.
+  </Card>
+  <Card title="historial_busquedas" icon="clock">
+    Per-user search history. Records the search term and optionally the selected movie.
+  </Card>
+</CardGroup>
+
+### Movie catalog
+
+<CardGroup cols={2}>
+  <Card title="peliculas" icon="film">
+    Main movie catalog. Stores TMDB metadata (id, title, year, director, synopsis, rating, poster URL) plus classification flags and a `keywords` JSON column.
+  </Card>
+  <Card title="catalogo_peliculas" icon="magnifying-glass">
+    Manager/search bridge table. Denormalizes key fields for fast catalog lookups and full-text searches without joining `peliculas`.
+  </Card>
+  <Card title="pelicula_generos" icon="link">
+    N:M join table linking movies to their genres.
+  </Card>
+</CardGroup>
+
+### AI analysis
+
+<CardGroup cols={2}>
+  <Card title="analisis" icon="sparkles">
+    One AI analysis record per movie. Tracks the analysis type (`entretenimiento` or `profundo`), Gemini model used, and status lifecycle (`pendiente` → `generando` → `completo` / `error`).
+  </Card>
+  <Card title="capas_analisis" icon="layers">
+    Individual analysis layers stored as `LONGTEXT`. Each layer has a `nombre_capa` value: `resumen`, `momentos`, `easter_eggs`, `curiosidades`, `narrativa`, `simbolismo`, `contexto`, `tecnica`, or `conclusion`.
+  </Card>
+  <Card title="log_ia" icon="scroll">
+    AI generation logs. Records the prompt used, estimated token count, and response time in milliseconds for each Gemini call.
+  </Card>
+  <Card title="historial_admin" icon="shield">
+    Admin action audit log. Records every `agregar`, `modificar`, `eliminar`, and `regenerar_ia` action performed by admin users.
+  </Card>
+</CardGroup>
+
+## Key table definitions
+
+The two most central tables for the AI analysis pipeline:
+
+```sql
+-- One analysis record per movie
+CREATE TABLE analisis (
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pelicula_id    INT UNSIGNED NOT NULL UNIQUE,
+  tipo           ENUM('entretenimiento','profundo') NOT NULL,
+  modelo_ia      VARCHAR(100) DEFAULT 'gemini-1.5-flash',
+  estado         ENUM('pendiente','generando','completo','error') DEFAULT 'pendiente',
+  idioma         VARCHAR(5) DEFAULT 'es',
+  eliminado      BOOLEAN NOT NULL DEFAULT FALSE,
+  generado_en    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (pelicula_id) REFERENCES peliculas(id) ON DELETE CASCADE
+);
+
+-- Individual named layers of content for each analysis
+CREATE TABLE capas_analisis (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  analisis_id  INT UNSIGNED NOT NULL,
+  modo         ENUM('entretenimiento','profundo') NOT NULL,
+  nombre_capa  ENUM(
+    'resumen','momentos','easter_eggs','curiosidades',
+    'narrativa','simbolismo','contexto','tecnica','conclusion'
+  ) NOT NULL,
+  contenido    LONGTEXT NOT NULL,
+  orden        TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_analisis_capa (analisis_id, nombre_capa),
+  FOREIGN KEY (analisis_id) REFERENCES analisis(id) ON DELETE CASCADE
+);
+```
+
+## Indexes
+
+The schema creates seven indexes for query performance:
+
+| Index name | Table | Column | Purpose |
+|---|---|---|---|
+| `idx_peliculas_tmdb` | `peliculas` | `tmdb_id` | Fast lookup by TMDB ID when syncing or deduplicating |
+| `idx_catalogo_titulo` | `catalogo_peliculas` | `titulo` | Catalog title search |
+| `idx_favoritos_usuario` | `favoritos` | `usuario_id` | Fetch all favorites for a user |
+| `idx_usuario_generos` | `usuario_generos` | `usuario_id` | Fetch a user's preferred genres |
+| `idx_pelicula_generos` | `pelicula_generos` | `pelicula_id` | Fetch genres for a movie |
+| `idx_historial_busquedas` | `historial_busquedas` | `usuario_id` | Fetch search history per user |
+| `idx_capas_analisis` | `capas_analisis` | `analisis_id` | Fetch all layers for a given analysis |
+
+## Seed data
+
+The schema script includes two seed inserts that run automatically:
+
+**12 genres** — inserted into `generos` on creation:
+
+```
+Acción, Drama, Comedia, Terror, Ciencia Ficción, Thriller,
+Romance, Psicológico, Animación, Documental, Histórico, Musical
+```
+
+**Default admin user** — a single `admin` account is created with the email `admin@magicfilm.com` and role `admin`. The `password_hash` field is set to the placeholder value `HASH_PENDIENTE` — **set a real bcrypt hash before deploying**.
+
+<Note>
+  The `database/seeds/` directory contains `data_prueba.sql` for loading additional test/sample data during development. Run it the same way as the schema:
+
+  ```bash
+  mysql -u root -p magic_filmv01 < database/seeds/data_prueba.sql
+  ```
+</Note>

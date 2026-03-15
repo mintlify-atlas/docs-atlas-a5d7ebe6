@@ -1,0 +1,176 @@
+---
+title: "Architecture"
+description: "Understand Magic Film's 3-layer MVC architecture and data flow"
+---
+
+Magic Film follows a **3-layer MVC architecture**. The frontend never communicates directly with TMDB or Google Gemini — every external API call passes through the backend. This keeps all API keys server-side and prevents credential exposure in client code.
+
+```
+Client (HTML/CSS/JS)  →  Backend REST API (Node.js/Express)  →  MySQL + External APIs
+```
+
+## Layers overview
+
+<CardGroup cols={3}>
+  <Card title="Frontend" icon="browser">
+    Static HTML/CSS/JS pages. Sends all requests to the backend over REST. Never holds API keys.
+  </Card>
+  <Card title="Backend" icon="server">
+    Node.js + Express. Handles auth, business logic, TMDB queries, Gemini calls, and DB access.
+  </Card>
+  <Card title="Data layer" icon="database">
+    MySQL stores users, movies, analyses, and AI logs. Results are cached to avoid repeated Gemini calls.
+  </Card>
+</CardGroup>
+
+## Directory structure
+
+```text
+magic-film/
+├── backend/
+│   ├── config/          # DB connection and environment config
+│   ├── controllers/     # Business logic per entity
+│   ├── models/          # Database access (SQL queries)
+│   ├── routes/          # REST endpoint definitions
+│   ├── middlewares/     # Auth, adminOnly, input validation
+│   ├── services/        # TMDB, Gemini, and classifier integrations
+│   ├── utils/           # Reusable helpers (errors, responses)
+│   └── server.js        # Server entry point
+│
+├── frontend/
+│   ├── pages/           # HTML files
+│   ├── css/
+│   │   ├── variables.css
+│   │   ├── global.css
+│   │   ├── components/
+│   │   └── pages/
+│   ├── js/
+│   │   ├── api/         # Fetch calls to the backend
+│   │   ├── components/
+│   │   └── pages/
+│   └── assets/          # Images and icons
+│
+├── database/
+│   ├── schema.sql
+│   ├── seeds/
+│   └── MER/
+│
+├── .env.example
+├── package.json
+└── vercel.json
+```
+
+## Backend layers
+
+### Config
+
+`backend/config/` holds two modules:
+
+- `db.js` — Creates and exports the MySQL connection pool using the `DB_*` variables from `.env`.
+- `env.js` — Centralizes access to all environment variables, so the rest of the codebase imports from one place instead of reading `process.env` directly.
+
+### Controllers
+
+`backend/controllers/` contains one file per entity (movies, users, analysis, admin). Controllers receive validated requests from routes, call models or services, and return structured JSON responses.
+
+### Models
+
+`backend/models/` handles all direct SQL queries against the MySQL database. Each model corresponds to a table or logical domain (e.g., `peliculaModel.js`, `analisisModel.js`). Controllers never write raw SQL — they call model functions.
+
+### Routes
+
+`backend/routes/` maps HTTP methods and paths to controller functions. Middlewares are applied here per route as needed.
+
+### Middlewares
+
+| File | Purpose |
+|------|---------|
+| `authMiddleware.js` | Validates the JWT from the `Authorization` header. Attaches decoded user data to `req.user`. |
+| `adminOnly.js` | Checks that `req.user.rol === 'admin'`. Returns 403 if not. |
+| `validarInput.js` | Validates and sanitizes request body fields before they reach the controller. |
+
+### Services
+
+Services encapsulate all external API communication:
+
+| File | Responsibility |
+|------|----------------|
+| `tmdbService.js` | Queries the TMDB API v3 for movie metadata, genres, and keywords. |
+| `geminiService.js` | Sends prompts to Google Gemini 1.5 Flash and returns structured analysis text. |
+| `clasificadorService.js` | Examines genres and keywords returned by TMDB and classifies the film as `entretenimiento` (entertainment) or `profundo` (deep/auteur). |
+
+### Utils
+
+`backend/utils/` holds shared helper functions: standardized error formatters, HTTP response wrappers, and any other logic reused across controllers.
+
+## Frontend layers
+
+The frontend is a static multi-page application with no build step.
+
+| Path | Contents |
+|------|---------|
+| `frontend/pages/` | One `.html` file per screen (home, search results, film detail, login, profile, admin panel). |
+| `frontend/css/variables.css` | CSS custom properties: colors, typography, spacing tokens. |
+| `frontend/css/global.css` | Base reset and global styles. |
+| `frontend/css/components/` | Styles scoped to reusable UI components (cards, modals, nav). |
+| `frontend/css/pages/` | Page-specific overrides. |
+| `frontend/js/api/` | Fetch wrappers that call backend endpoints. All external data goes through here. |
+| `frontend/js/components/` | JS for reusable UI components. |
+| `frontend/js/pages/` | Page-level scripts that orchestrate components and API calls. |
+| `frontend/assets/` | Static images and icons. |
+
+## Data flow: analysis request
+
+The following sequence describes what happens when a user searches for a film and requests an analysis:
+
+```text
+1. User types a film title in the search bar
+        ↓
+2. frontend/js/api/ sends GET /api/movies/search?q=... to the backend
+        ↓
+3. Backend calls tmdbService.js → TMDB returns metadata, genres, keywords
+        ↓
+4. clasificadorService.js evaluates the data → assigns 'entretenimiento' or 'profundo'
+        ↓
+5. Backend checks the analisis table in MySQL
+   ├── Row exists (estado = 'completo') → return cached analysis immediately
+   └── No row → call geminiService.js with a type-specific prompt
+        ↓
+6. Gemini returns analysis text → backend saves to analisis + capas_analisis tables
+   └── log_ia row created with prompt, token estimate, and response time
+        ↓
+7. Backend returns structured JSON to the frontend
+        ↓
+8. frontend/js/pages/ renders the analysis layers on screen
+```
+
+<Info>
+  The DB cache in step 5 means that once a film has been analysed, subsequent requests for the same film are served instantly from MySQL with zero Gemini API cost.
+</Info>
+
+## Database tables
+
+The schema (`database/schema.sql`) defines the following tables:
+
+| Table | Description |
+|-------|-------------|
+| `usuarios` | Registered users with roles (`invitado`, `registrado`, `admin`) and cinephile level. |
+| `generos` | Canonical genre list (Action, Drama, etc.) seeded at setup. |
+| `usuario_generos` | N:M join between users and their preferred genres. |
+| `peliculas` | Core movie records sourced from TMDB, including classifier result (`tipo_analisis`). |
+| `catalogo_peliculas` | Denormalized search/listing view of movies for fast catalog queries. |
+| `pelicula_generos` | N:M join between movies and genres. |
+| `analisis` | One analysis record per movie. Tracks generation state (`pendiente`, `generando`, `completo`, `error`). |
+| `capas_analisis` | Individual analysis layers (e.g., `resumen`, `simbolismo`, `curiosidades`) stored as rich text. |
+| `favoritos` | Saved movies per user. |
+| `historial_busquedas` | Per-user search history log. |
+| `historial_admin` | Audit log of admin actions (add, modify, delete, regenerate). |
+| `log_ia` | Per-generation log of the prompt used, estimated token count, and response time in ms. |
+
+## Deployment
+
+Magic Film includes a `vercel.json` at the project root, configured for Vercel v2 deployments. The live demo is hosted at [magic-film.vercel.app](https://magic-film.vercel.app).
+
+<Note>
+  The current deployment hosts the frontend mockup only. Full backend deployment with environment variable injection is planned for a later release phase.
+</Note>

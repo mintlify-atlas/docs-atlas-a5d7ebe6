@@ -1,0 +1,90 @@
+---
+title: "Movie search"
+description: "Search for any movie using TMDB-powered search"
+---
+
+The explore page is the primary entry point for discovering and analyzing films. All movie data flows through TMDB — Magic Film never maintains its own film catalog from scratch.
+
+## Search flow
+
+```
+User types in the search box
+        ↓
+Frontend calls GET /api/peliculas/buscar?q={query}
+        ↓
+Backend queries TMDB Search API
+        ↓
+Results cached in catalogo_peliculas
+        ↓
+Frontend renders results grid
+```
+
+Every successful search response is written to the `catalogo_peliculas` table. This acts as a local cache so repeated searches for the same title return instantly from MySQL without hitting TMDB again.
+
+## The explore page
+
+The explore page (`/explore`) gives you two ways to find films:
+
+**Search box** — type any film title to query TMDB in real time. Results appear in a grid below the input.
+
+**Quick genre tags** — tap a tag to run a pre-scoped search:
+
+- Acción
+- Ciencia Ficción
+- Comedia
+- Terror
+- Drama
+
+Below the search area, the page displays a **recommendations grid** (personalized for registered users based on genre preferences) and a **categories section** for browsing by genre.
+
+## Movie detail
+
+Selecting any result opens the movie detail view. It displays:
+
+| Field | Source |
+|-------|--------|
+| Poster | TMDB poster URL |
+| Title | `peliculas.titulo` |
+| Genre | `generos` via `pelicula_generos` |
+| Year | `peliculas.anio` |
+| Duration | `peliculas.duracion_min` |
+| Rating | `peliculas.calificacion` (0–10) |
+| Synopsis | `peliculas.sinopsis` |
+
+From the detail view, registered users can trigger a new AI analysis if one does not yet exist.
+
+## Guest vs. registered access
+
+<Info>
+  Guest users can search any film and view analyses that have already been generated. Registered users can also **trigger new analysis generation** for films that have not yet been analyzed.
+</Info>
+
+| Action | Guest | Registered |
+|--------|-------|------------|
+| Search films | Yes | Yes |
+| View existing analyses | Yes | Yes |
+| Trigger new analysis | No | Yes |
+| Save to favorites | No | Yes |
+| Personalized recommendations | No | Yes |
+
+## Database caching
+
+The `catalogo_peliculas` table acts as the search cache layer:
+
+```sql
+CREATE TABLE catalogo_peliculas (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pelicula_id     INT UNSIGNED NOT NULL,
+  titulo          VARCHAR(255) NOT NULL,
+  anio            YEAR,
+  calificacion    DECIMAL(3,1),
+  poster_url      VARCHAR(500),
+  texto_busqueda  TEXT,
+  actualizado_en  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (pelicula_id) REFERENCES peliculas(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_catalogo_titulo ON catalogo_peliculas (titulo);
+```
+
+The index on `titulo` keeps text searches fast even as the catalog grows. The `texto_busqueda` column stores a normalized version of the title for partial-match queries.

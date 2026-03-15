@@ -1,0 +1,102 @@
+---
+title: "Environment variables"
+description: "Configure Magic Film with the required environment variables"
+---
+
+Magic Film reads its configuration from a `.env` file at the project root. Copy `.env.example` to `.env` and fill in your values before starting the server.
+
+```bash
+cp .env.example .env
+```
+
+<Warning>
+  Never commit your real `.env` file to source control. It contains secrets such as database credentials and API keys. The `.gitignore` should already exclude it — verify this before pushing.
+</Warning>
+
+## Server
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `PORT` | TCP port the Express server listens on | No | `3000` |
+| `NODE_ENV` | Runtime environment. Use `development` locally and `production` on deployments | No | `development` |
+
+## Database
+
+All `DB_*` variables configure the MySQL connection pool.
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `DB_HOST` | MySQL server hostname or IP | Yes | `localhost` |
+| `DB_PORT` | MySQL server port | No | `3306` |
+| `DB_NAME` | Database name to connect to | Yes | `magic_film` |
+| `DB_USER` | MySQL user | Yes | `root` |
+| `DB_PASSWORD` | Password for `DB_USER` | Yes | *(none)* |
+
+## External APIs
+
+### TMDB
+
+Magic Film uses the TMDB v3 REST API for movie metadata, posters, and search results.
+
+Get your key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api).
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `TMDB_API_KEY` | Your TMDB v3 API key | Yes | *(none)* |
+| `TMDB_BASE_URL` | Base URL for all TMDB requests | No | `https://api.themoviedb.org/3` |
+
+### Google Gemini
+
+Magic Film uses Google Gemini to generate AI cinematographic analysis. Get your key at [aistudio.google.com](https://aistudio.google.com).
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Your Google AI Studio API key | Yes | *(none)* |
+| `GEMINI_MODEL` | Gemini model ID to use for analysis generation | No | `gemini-1.5-flash` |
+
+## Security
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `JWT_SECRET` | Secret key used to sign and verify JWT tokens | Yes | *(none)* |
+| `JWT_EXPIRES_IN` | JWT token lifetime. Accepts any value accepted by [ms](https://github.com/vercel/ms) (e.g. `7d`, `2h`, `30m`) | No | `7d` |
+
+<Warning>
+  The `.env.example` file ships with `JWT_SECRET=PapiLeonKennedySecretKey` as a placeholder. **Change this to a long, random string before deploying to production.** Anyone with this value can forge valid authentication tokens for your application.
+
+  Generate a strong secret with:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+  ```
+</Warning>
+
+## Full `.env.example`
+
+The complete example file as shipped in the repository:
+
+```bash .env.example
+# ── SERVIDOR ──────────────────────────────────
+PORT=3000
+NODE_ENV=development
+
+# ── BASE DE DATOS ──────────────────────────────
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=magic_film
+DB_USER=root
+DB_PASSWORD=password_aqui
+
+# ── APIS EXTERNAS ──────────────────────────────
+# La Api se obtiene en: https://www.themoviedb.org/settings/api
+TMDB_API_KEY=clave_tmdb_aqui
+TMDB_BASE_URL=https://api.themoviedb.org/3
+
+# La Api se obtiene en: https://aistudio.google.com
+GEMINI_API_KEY=clave_gemini_aqui
+GEMINI_MODEL=gemini-1.5-flash
+
+# ── SEGURIDAD (Solo es un ejemplo profe) ──────────────────────────────────
+JWT_SECRET=PapiLeonKennedySecretKey
+JWT_EXPIRES_IN=7d
+```

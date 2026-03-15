@@ -1,0 +1,142 @@
+---
+title: "TMDB API"
+description: "Movie data integration via The Movie Database API v3"
+---
+
+Magic Film uses the TMDB v3 REST API as its source of truth for all movie metadata. The backend fetches data from TMDB, stores it in the `peliculas` table, and serves it to the frontend. The frontend never calls TMDB directly — every TMDB interaction goes through `backend/services/tmdbService.js`.
+
+## What TMDB provides
+
+<CardGroup cols={2}>
+  <Card title="Movie metadata" icon="film">
+    Title, original title, release year, director, runtime, synopsis, budget, revenue, and TMDB rating.
+  </Card>
+  <Card title="Genres" icon="tag">
+    Genre list from TMDB's canonical genre taxonomy, stored in the `generos` and `pelicula_generos` tables.
+  </Card>
+  <Card title="Keywords" icon="key">
+    Thematic keywords attached to the film by TMDB contributors. Stored as JSON in `peliculas.keywords`. Used by `clasificadorService.js` to determine analysis mode.
+  </Card>
+  <Card title="Poster images" icon="image">
+    Poster path returned by TMDB. Stored in `peliculas.poster_url` and used to build the full CDN image URL.
+  </Card>
+</CardGroup>
+
+## Environment variables
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `TMDB_API_KEY` | Your TMDB v3 API key | Yes | *(none)* |
+| `TMDB_BASE_URL` | Base URL for all TMDB requests | No | `https://api.themoviedb.org/3` |
+
+## Getting your API key
+
+<Steps>
+  <Step title="Create a TMDB account">
+    Go to [themoviedb.org](https://www.themoviedb.org) and create a free account.
+  </Step>
+  <Step title="Request an API key">
+    Navigate to [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) and request a key. Select **Developer** for a personal or non-commercial project. You'll receive an API key (v3 auth) immediately.
+  </Step>
+  <Step title="Add the key to your .env">
+    Open your `.env` file and set the `TMDB_API_KEY` variable:
+
+    ```bash .env
+    TMDB_API_KEY=your_tmdb_api_key_here
+    TMDB_BASE_URL=https://api.themoviedb.org/3
+    ```
+  </Step>
+  <Step title="Restart the server">
+    Restart the backend so it picks up the new environment variable. Movie search and metadata fetch will now work correctly.
+  </Step>
+</Steps>
+
+## Data flow
+
+When a user searches for a film, the backend follows this sequence:
+
+```text
+GET /api/movies/search?q=Inception
+        ↓
+tmdbService.js → GET https://api.themoviedb.org/3/search/movie?query=Inception
+        ↓
+TMDB returns: title, tmdb_id, year, synopsis, genres, keywords, poster_path, ratings
+        ↓
+Backend upserts into peliculas (tmdb_id UNIQUE — no duplicates)
+        ↓
+catalogo_peliculas updated for fast listing queries
+        ↓
+Structured movie object returned to the frontend
+```
+
+<Info>
+  The `tmdb_id UNIQUE` constraint on the `peliculas` table ensures a film is only fetched from TMDB once. After the first request, subsequent searches for the same film are served from the local database.
+</Info>
+
+## Database mapping
+
+TMDB response fields map to the `peliculas` table as follows:
+
+| TMDB field | `peliculas` column | Notes |
+|---|---|---|
+| `id` | `tmdb_id` | UNIQUE — prevents duplicate imports |
+| `title` | `titulo` | Localized title |
+| `original_title` | `titulo_original` | |
+| `release_date` | `anio` | Year extracted from full date |
+| `runtime` | `duracion_min` | Minutes |
+| `overview` | `sinopsis` | |
+| `budget` | `presupuesto` | USD |
+| `revenue` | `recaudacion` | USD |
+| `vote_average` | `calificacion` | 0–10, stored as `DECIMAL(3,1)` |
+| `poster_path` | `poster_url` | Path only — see poster images below |
+| `keywords.keywords` | `keywords` | Stored as JSON array |
+
+### Example TMDB movie response shape
+
+```json
+{
+  "id": 27205,
+  "title": "Inception",
+  "original_title": "Inception",
+  "release_date": "2010-07-16",
+  "runtime": 148,
+  "overview": "Cobb, a skilled thief who commits corporate espionage...",
+  "budget": 160000000,
+  "revenue": 836836967,
+  "vote_average": 8.4,
+  "poster_path": "/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
+  "genres": [
+    { "id": 28, "name": "Action" },
+    { "id": 878, "name": "Science Fiction" }
+  ],
+  "keywords": {
+    "keywords": [
+      { "id": 1721, "name": "dream" },
+      { "id": 6917, "name": "subconscious" }
+    ]
+  }
+}
+```
+
+## Poster images
+
+`poster_url` stores only the path returned by TMDB (e.g. `/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg`). To display a poster, prepend the TMDB image CDN base URL and a size:
+
+```text
+https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg
+```
+
+Common sizes: `w185`, `w342`, `w500`, `w780`, `original`.
+
+## Rate limiting and caching
+
+The TMDB free tier allows up to 50 requests per second, which is more than sufficient for development and small-scale production use.
+
+Magic Film limits TMDB calls naturally through database caching:
+
+- **`peliculas`** — stores the full metadata record after the first fetch. TMDB is not called again for the same `tmdb_id`.
+- **`catalogo_peliculas`** — a denormalized listing table that serves search and browse queries from MySQL, not TMDB.
+
+<Tip>
+  You do not need to implement any additional TMDB rate-limiting logic for typical usage. The caching layer in the database handles it.
+</Tip>

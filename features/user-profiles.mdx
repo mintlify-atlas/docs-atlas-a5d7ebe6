@@ -1,0 +1,107 @@
+---
+title: "User profiles"
+description: "Personalized cinephile profiles with genre preferences and experience levels"
+---
+
+Magic Film builds a cinephile profile for every registered user. The profile drives personalized recommendations and adapts the platform experience to your viewing habits.
+
+## Registration and onboarding
+
+Registration is a two-step flow. Both steps must be completed before `onboarding_completo` is set to `TRUE` on the `usuarios` row.
+
+<Steps>
+  <Step title="Create your account">
+    Provide your full name, email address, and a password (minimum 6 characters). The backend hashes the password with bcrypt and stores it in `password_hash`.
+
+    Fields written to `usuarios`:
+    - `nombre_completo`
+    - `email`
+    - `password_hash`
+    - `rol` → defaults to `'registrado'`
+    - `activo` → defaults to `TRUE`
+  </Step>
+
+  <Step title="Set up your cinephile profile">
+    Choose a username, select your cinephile level, and pick at least 3 favorite genres. This data personalizes your recommendations from the first session.
+
+    Fields written to `usuarios`:
+    - `nombre_usuario`
+    - `nivel_cinefilo`
+    - `onboarding_completo` → set to `TRUE`
+
+    Genre selections are stored in the `usuario_generos` join table.
+  </Step>
+</Steps>
+
+## Cinephile levels
+
+The `nivel_cinefilo` field describes how you engage with cinema. It appears on your profile and can influence recommendation weighting in future versions.
+
+<CardGroup cols={3}>
+  <Card title="Explorador" icon="couch">
+    **Recién comienzo** — You're just starting to explore cinema. Recommendations lean toward accessible, popular titles.
+  </Card>
+  <Card title="Entusiasta" icon="film">
+    **Veo regularmente** — You watch films regularly and enjoy both mainstream and independent cinema.
+  </Card>
+  <Card title="Experto" icon="graduation-cap">
+    **Vivo el cine** — Cinema is a serious interest. Recommendations include auteur films, deep cuts, and award-circuit titles.
+  </Card>
+</CardGroup>
+
+## Genre preferences
+
+During profile setup, you select at least 3 genres from the full list:
+
+```
+Acción · Drama · Comedia · Terror · Ciencia Ficción
+Thriller · Romance · Psicológico · Animación
+Documental · Histórico · Musical
+```
+
+These are stored in the `usuario_generos` table as foreign key references to the `generos` table. The backend uses this list to populate the **Recomendado para ti** section on the explore page.
+
+## Profile page
+
+The profile page (`/user-profile`) shows a summary of your activity and preferences:
+
+- **Avatar and display name** (`nombre_usuario`)
+- **Cinephile level** badge
+- **Stats row** — movies seen, saved, and analyses read
+- **Favorite genres** — the tags selected during onboarding
+- **Saved movies** — your favorites list with poster, title, year, genre, and analysis type badge
+- **Search history** — recent searches pulled from `historial_busquedas`
+- **Recommended for you** — personalized film grid based on your genre preferences
+
+## Search history
+
+Every search performed by a registered user is logged in `historial_busquedas`:
+
+```sql
+CREATE TABLE historial_busquedas (
+  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  usuario_id       INT UNSIGNED NOT NULL,
+  termino_buscado  VARCHAR(255) NOT NULL,
+  pelicula_id      INT UNSIGNED,
+  buscado_en       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (pelicula_id) REFERENCES peliculas(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_historial_busquedas ON historial_busquedas (usuario_id);
+```
+
+If the search resolved to a specific film, `pelicula_id` is populated. If the search returned no result or multiple results without a selection, `pelicula_id` is `NULL`.
+
+## Key database fields
+
+The `usuarios` table fields relevant to profiles:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nombre_usuario` | VARCHAR(50) | Unique display name, set in step 2 |
+| `email` | VARCHAR(150) | Unique login email, set in step 1 |
+| `nivel_cinefilo` | ENUM | `explorador`, `entusiasta`, or `experto` |
+| `onboarding_completo` | BOOLEAN | `TRUE` after both steps are done |
+| `activo` | BOOLEAN | `FALSE` for suspended accounts |
+| `rol` | ENUM | `registrado`, `admin`, or `invitado` |

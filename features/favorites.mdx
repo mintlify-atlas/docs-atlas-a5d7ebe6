@@ -1,0 +1,78 @@
+---
+title: "Favorites"
+description: "Save and manage your favorite movies"
+---
+
+Registered users can save any film to their favorites list. Saved films appear on the profile page with a direct link back to the full analysis.
+
+<Note>
+  Favorites require a registered account. Guest users cannot save films. To use this feature, complete the two-step registration flow.
+</Note>
+
+## How favorites work
+
+On any movie detail page, a registered user can tap the save button to add the film to their favorites. The request hits `POST /api/usuarios/favoritos` with the `pelicula_id` in the body. To remove a film, the client calls `DELETE /api/usuarios/favoritos/:id`.
+
+## API endpoints
+
+**Add a favorite:**
+
+```http
+POST /api/usuarios/favoritos
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+
+{
+  "pelicula_id": 42
+}
+```
+
+**Remove a favorite:**
+
+```http
+DELETE /api/usuarios/favoritos/:id
+Authorization: Bearer <jwt_token>
+```
+
+Both endpoints require a valid JWT. The backend extracts `usuario_id` from the token — you never send your own user ID in the request body.
+
+## Profile display
+
+Saved films appear in the **Películas Guardadas** section of the profile page. Each entry shows:
+
+- Film poster thumbnail
+- Title and year
+- Genre
+- Analysis type badge (`Profundo` or `Entretenimiento`)
+
+Tapping any saved film navigates directly to its analysis page.
+
+## Database structure
+
+Favorites are stored in the `favoritos` table:
+
+```sql
+CREATE TABLE favoritos (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  usuario_id   INT UNSIGNED NOT NULL,
+  pelicula_id  INT UNSIGNED NOT NULL,
+  guardado_en  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_favorito (usuario_id, pelicula_id),
+  FOREIGN KEY (usuario_id)  REFERENCES usuarios(id)  ON DELETE CASCADE,
+  FOREIGN KEY (pelicula_id) REFERENCES peliculas(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_favoritos_usuario ON favoritos (usuario_id);
+```
+
+The `UNIQUE KEY` on `(usuario_id, pelicula_id)` prevents a user from saving the same film twice — the database enforces this at the constraint level, not just in application code.
+
+The index on `usuario_id` means fetching all favorites for a given user is a single fast index scan, regardless of total table size.
+
+## Duplicate prevention
+
+If a user attempts to save a film they have already saved, MySQL raises a duplicate key error on `uq_favorito`. The backend catches this and returns a `409 Conflict` response with a clear error message rather than a 500.
+
+<Tip>
+  The frontend should check the current favorites state before showing the save button to avoid unnecessary 409 responses. The `GET /api/usuarios/perfil` endpoint returns the current favorites list alongside profile data.
+</Tip>

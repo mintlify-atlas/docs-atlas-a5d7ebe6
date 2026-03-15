@@ -1,0 +1,183 @@
+---
+title: "Movie endpoints"
+description: "Search, browse, and retrieve movie data"
+---
+
+Movie endpoints let you search the catalog and retrieve full movie details. No authentication is required for either endpoint.
+
+---
+
+## GET /api/peliculas/buscar
+
+Search for movies by title. The backend queries both TMDB and the local `catalogo_peliculas` table.
+
+### Query parameters
+
+<ParamField query="q" type="string" required>
+  Search term. Partial matches are supported.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on a successful search.
+</ResponseField>
+
+<ResponseField name="data" type="object[]" required>
+  Array of matching movies.
+  <Expandable title="movie object">
+    <ResponseField name="tmdb_id" type="number">
+      TMDB identifier for this film.
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Spanish or localized title.
+    </ResponseField>
+    <ResponseField name="anio" type="number">
+      Release year.
+    </ResponseField>
+    <ResponseField name="calificacion" type="number">
+      TMDB rating on a 0–10 scale.
+    </ResponseField>
+    <ResponseField name="poster_url" type="string">
+      Full URL to the movie poster image.
+    </ResponseField>
+    <ResponseField name="tipo_analisis" type="string">
+      Classifier result: `entretenimiento` or `profundo`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  Search results are stored in the `catalogo_peliculas` table. Repeated searches for the same term are served from this cache, reducing TMDB API calls.
+</Note>
+
+### Example
+
+```bash
+curl --request GET \
+  --url 'http://localhost:3000/api/peliculas/buscar?q=midsommar'
+```
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "tmdb_id": 530385,
+      "titulo": "Midsommar",
+      "anio": 2019,
+      "calificacion": 7.1,
+      "poster_url": "https://image.tmdb.org/t/p/w500/7LEI8ulZzO5gy9Ww2NVCrKmHeDZ.jpg",
+      "tipo_analisis": "profundo"
+    }
+  ]
+}
+```
+
+---
+
+## GET /api/peliculas/:id
+
+Retrieve full details for a single movie by its internal ID.
+
+### Path parameters
+
+<ParamField path="id" type="integer" required>
+  Internal movie ID from the `peliculas` table. This is not the same as `tmdb_id`.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the movie is found.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  Full movie record.
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="id" type="number">
+      Internal movie ID.
+    </ResponseField>
+    <ResponseField name="tmdb_id" type="number">
+      TMDB identifier.
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Localized title.
+    </ResponseField>
+    <ResponseField name="titulo_original" type="string">
+      Original language title.
+    </ResponseField>
+    <ResponseField name="anio" type="number">
+      Release year.
+    </ResponseField>
+    <ResponseField name="director" type="string">
+      Director name.
+    </ResponseField>
+    <ResponseField name="duracion_min" type="number">
+      Runtime in minutes.
+    </ResponseField>
+    <ResponseField name="sinopsis" type="string">
+      Plot synopsis.
+    </ResponseField>
+    <ResponseField name="presupuesto" type="number">
+      Production budget in USD.
+    </ResponseField>
+    <ResponseField name="recaudacion" type="number">
+      Box office gross in USD.
+    </ResponseField>
+    <ResponseField name="calificacion" type="number">
+      TMDB rating on a 0–10 scale.
+    </ResponseField>
+    <ResponseField name="poster_url" type="string">
+      Full URL to the movie poster image.
+    </ResponseField>
+    <ResponseField name="keywords" type="object">
+      JSON array of TMDB keyword objects associated with this film.
+    </ResponseField>
+    <ResponseField name="tipo_analisis" type="string">
+      Classifier result: `entretenimiento` or `profundo`.
+    </ResponseField>
+    <ResponseField name="generos" type="object[]">
+      Array of genre objects associated with this film.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `404` | No movie found with the given ID. |
+
+### Example
+
+```bash
+curl --request GET \
+  --url http://localhost:3000/api/peliculas/1
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "tmdb_id": 530385,
+    "titulo": "Midsommar",
+    "titulo_original": "Midsommar",
+    "anio": 2019,
+    "director": "Ari Aster",
+    "duracion_min": 148,
+    "sinopsis": "Una pareja viaja a Suecia para asistir a un festival de verano...",
+    "presupuesto": 9000000,
+    "recaudacion": 6957342,
+    "calificacion": 7.1,
+    "poster_url": "https://image.tmdb.org/t/p/w500/7LEI8ulZzO5gy9Ww2NVCrKmHeDZ.jpg",
+    "keywords": ["folk horror", "cult", "grief"],
+    "tipo_analisis": "profundo",
+    "generos": [
+      { "id": 4, "nombre": "Terror" },
+      { "id": 2, "nombre": "Drama" }
+    ]
+  }
+}
+```

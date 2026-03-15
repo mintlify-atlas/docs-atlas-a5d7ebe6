@@ -1,0 +1,99 @@
+---
+title: "Magic Film"
+description: "AI-powered adaptive cinematographic analysis. Understand the true meaning of cinema."
+---
+
+<img
+  className="block"
+  src="https://readme-typing-svg.herokuapp.com?font=Playfair+Display&size=42&duration=3000&pause=1000&color=F5A623&center=true&vCenter=true&width=600&height=80&lines=Magic+Film;Adaptive+Cinematographic+Analysis"
+  alt="Magic Film"
+/>
+
+## What is Magic Film?
+
+Magic Film is a web platform that generates **personalized cinematographic analysis powered by artificial intelligence**. Unlike IMDb or Letterboxd — which show user-written reviews with inconsistent quality — Magic Film produces its own structured, AI-generated analysis adapted to the character of each film.
+
+The system automatically detects whether a film is **mainstream entertainment** or **auteur cinema**, and generates a completely different analysis for each case. All analysis is delivered in Spanish, organized in thematic layers, and stored in a database to avoid redundant API calls.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get Magic Film running locally in minutes
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand the 3-layer MVC architecture
+  </Card>
+  <Card title="Analysis Modes" icon="brain" href="/features/analysis-modes">
+    Learn how the adaptive AI classifier works
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the full REST API surface
+  </Card>
+</CardGroup>
+
+## How it works
+
+```
+User types "Midsommar"
+        ↓
+Frontend sends search to backend
+        ↓
+Backend queries TMDB → retrieves genres, keywords, data
+        ↓
+Internal classifier → DEEP or ENTERTAINMENT
+        ↓
+Does analysis exist in DB?
+   ├── YES → returns cached result  (fast, no cost)
+   └── NO  → calls Google Gemini → saves → returns
+        ↓
+Frontend renders the analysis screens
+```
+
+## Two analysis modes
+
+<CardGroup cols={2}>
+  <Card title="Entertainment Mode" icon="bolt">
+    For blockbusters, comedies, mainstream titles. Delivers: spoiler-free summary, epic moments, easter eggs, and production trivia.
+  </Card>
+  <Card title="Deep Mode" icon="brain">
+    For auteur films, dramas, folk horror. Delivers: visual symbolism, themes, cultural context, and director analysis.
+  </Card>
+</CardGroup>
+
+## Technology stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | HTML5 · CSS3 · JavaScript ES6+ |
+| **Backend** | Node.js · Express.js |
+| **Database** | MySQL |
+| **Generative AI** | Google Gemini 1.5 Flash |
+| **Movie data** | TMDB API v3 |
+| **Authentication** | JWT |
+
+## User roles
+
+Magic Film supports three distinct user roles, each with escalating permissions:
+
+| Role | Access |
+|------|--------|
+| **Guest** | Search movies, view existing analyses |
+| **Registered** | Everything above + generate analyses, save favorites, personalized recommendations |
+| **Admin** | Full catalog management, analysis regeneration, monitoring panel |
+
+## Project status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Complete UI/UX design | ✅ Done |
+| 2 | Interactive mockup HTML/CSS/JS | ✅ Done |
+| 3 | Registration, login, and profile setup flow | ✅ Done |
+| 4 | Node.js + Express backend | 🔄 In progress |
+| 5 | TMDB API integration | ⏳ Pending |
+| 6 | Google Gemini API integration | ⏳ Pending |
+| 7 | MySQL database | ⏳ Pending |
+| 8 | Frontend ↔ backend connection | ⏳ Pending |
+| 9 | Testing and deployment | ⏳ Pending |
+
+<Note>
+  Magic Film is currently at version 0.1 (interactive mockup). The backend, API integrations, and database are under active development.
+</Note>

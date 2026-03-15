@@ -1,0 +1,75 @@
+---
+title: "Registered users"
+description: "Full access to analysis generation, favorites, and personalized recommendations"
+---
+
+Registered users are authenticated members who have completed the sign-up flow. They receive everything guests can do, plus access to the platform's core features: on-demand AI analysis generation, a personal favorites list, search history, and recommendations tuned to their taste.
+
+## Getting started
+
+<Steps>
+  <Step title="Create your account">
+    Navigate to the registration page and submit your full name, email, and password. On success, your record is inserted into the `usuarios` table with `rol = 'registrado'` and `onboarding_completo = FALSE`.
+
+    ```sql schema.sql
+    rol ENUM('invitado','registrado','admin') NOT NULL DEFAULT 'registrado'
+    onboarding_completo BOOLEAN NOT NULL DEFAULT FALSE
+    ```
+  </Step>
+  <Step title="Log in and receive your JWT">
+    Submit your email and password to the login endpoint. The backend validates your credentials and issues a JWT. Include this token as a `Bearer` header on all subsequent requests:
+
+    ```http
+    Authorization: Bearer <your_token>
+    ```
+
+    The JWT payload contains your user `id` and `rol`, which `authMiddleware.js` decodes on every protected request.
+  </Step>
+  <Step title="Complete onboarding">
+    After your first login you are prompted to finish your cinephile profile (Step 2 of 2 in the UI). Set your username, pick your `nivel_cinefilo`, and select at least three favorite genres.
+
+    Once you save this step, `onboarding_completo` is set to `TRUE` and your favorite genres are stored in `usuario_generos`.
+
+    ```sql schema.sql
+    nivel_cinefilo ENUM('explorador','entusiasta','experto') DEFAULT NULL
+    ```
+
+    | Level | Description |
+    |-------|-------------|
+    | `explorador` | Just getting started |
+    | `entusiasta` | Watches regularly |
+    | `experto` | Lives and breathes cinema |
+  </Step>
+  <Step title="Enjoy full access">
+    With onboarding complete you have access to all registered-user features: on-demand analysis generation, favorites, history, and personalized recommendations.
+  </Step>
+</Steps>
+
+## What registered users can do
+
+### Generate AI analyses
+
+Send a `POST` request to trigger analysis generation for any film that does not yet have a cached result:
+
+```http
+POST /api/analisis/generar
+Authorization: Bearer <token>
+```
+
+The backend calls Google Gemini, stores the result in `analisis` and `capas_analisis`, and returns it. Subsequent requests for the same film are served from the database cache — no extra AI call is made.
+
+### Save favorites
+
+Add or remove films from your personal favorites list. Entries are stored in the `favoritos` table, keyed by your `usuario_id` and the film's `pelicula_id`.
+
+### Search history
+
+Every search you perform is automatically recorded in `historial_busquedas`. You can view and manage your history from your profile page.
+
+### Personalized recommendations
+
+The recommendations engine uses your `nivel_cinefilo` level and your preferred genres (from `usuario_generos`) to surface films that match your taste. Recommendations are visible on the Explore page once onboarding is complete.
+
+### Complete profile management
+
+You can update your `nivel_cinefilo`, add or remove favorite genres, and adjust your account details at any time from your profile settings.

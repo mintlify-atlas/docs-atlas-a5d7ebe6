@@ -1,0 +1,141 @@
+---
+title: "Installation"
+description: "Set up Magic Film for local development"
+---
+
+<Note>
+  Magic Film is currently at **version 0.1 (interactive mockup)**. The backend, API integrations, and database connection are under active development.
+</Note>
+
+A live demo is available at [magic-film.vercel.app](https://magic-film.vercel.app). Follow the steps below to run the project locally.
+
+## Prerequisites
+
+Before you begin, make sure you have all of the following installed and available:
+
+| Requirement | Version | Notes |
+|---|---|---|
+| [Node.js](https://nodejs.org) | 18+ | JavaScript runtime |
+| [MySQL](https://mysql.com) | 8+ | Relational database |
+| [Git](https://git-scm.com) | Any | For cloning the repo |
+| TMDB API key | — | Free account required |
+| Google Gemini API key | — | Free account required |
+
+### Getting API keys
+
+**TMDB API key** — Create a free account and request a key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api). The v3 API key is what Magic Film uses.
+
+**Google Gemini API key** — Generate a free key at [aistudio.google.com](https://aistudio.google.com). Magic Film targets the `gemini-1.5-flash` model by default.
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Michael5006/Magic-Film.git
+    cd Magic-Film
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    The `package.json` is at the project root. Install all Node.js dependencies from there:
+
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    Copy the example file and fill in your values:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` and replace every placeholder with your real credentials. See [Environment variables](/setup/environment-variables) for a full description of each variable.
+  </Step>
+
+  <Step title="Create the MySQL database">
+    Connect to your MySQL instance and create the database:
+
+    ```sql
+    CREATE DATABASE IF NOT EXISTS magic_filmv01
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+    ```
+
+    Or create it directly from the CLI:
+
+    ```bash
+    mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS magic_filmv01 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    ```
+  </Step>
+
+  <Step title="Run the database schema">
+    Apply the schema to create all tables, indexes, and seed data:
+
+    ```bash
+    mysql -u root -p magic_filmv01 < database/schema.sql
+    ```
+
+    This creates all required tables and inserts the 12 starter genres plus a default admin user. See [Database setup](/setup/database) for a full table reference.
+  </Step>
+
+  <Step title="Start the backend server">
+    Run the backend directly with Node:
+
+    ```bash
+    node backend/server.js
+    ```
+
+    The server starts on `http://localhost:3000` (or the `PORT` value from your `.env`).
+  </Step>
+
+  <Step title="Open the frontend">
+    The frontend is a static HTML/CSS/JS application. Open the entry point in your browser:
+
+    ```bash
+    open frontend/pages/index.html
+    ```
+
+    On Linux or Windows, navigate to `frontend/pages/index.html` in your file manager, or open it from the browser with **File > Open**.
+
+    <Tip>
+      For a better development experience, use [live-server](https://www.npmjs.com/package/live-server) to get automatic reloading when you edit frontend files:
+
+      ```bash
+      npx live-server frontend/pages
+      ```
+    </Tip>
+  </Step>
+</Steps>
+
+## Development tips
+
+<Tip>
+  Install [nodemon](https://www.npmjs.com/package/nodemon) to automatically restart the backend whenever you save a file:
+
+  ```bash
+  npm install -g nodemon
+  nodemon backend/server.js
+  ```
+
+  This avoids manually stopping and restarting the server during development.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Environment variables" icon="key" href="/setup/environment-variables">
+    Full reference for every `.env` configuration option.
+  </Card>
+  <Card title="Database setup" icon="database" href="/setup/database">
+    Explore the schema, tables, and seed data.
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand the 3-layer MVC structure and data flow.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    Browse the full REST API surface.
+  </Card>
+</CardGroup>

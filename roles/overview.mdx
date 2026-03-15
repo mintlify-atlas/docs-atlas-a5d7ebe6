@@ -1,0 +1,61 @@
+---
+title: "User roles overview"
+description: "Understanding Magic Film's three-tier role system"
+---
+
+Magic Film uses three distinct user roles to control access to features and protect sensitive operations. Roles are stored in the `usuarios` table and enforced on every protected request via JWT middleware.
+
+## The three roles
+
+<Columns cols={3}>
+  <Card title="Guest" icon="eye" href="/roles/guest">
+    Unauthenticated users. Can browse the catalog and read existing analyses — no account required.
+  </Card>
+  <Card title="Registered" icon="user" href="/roles/registered">
+    Authenticated users. Full access to AI analysis generation, favorites, history, and personalized recommendations.
+  </Card>
+  <Card title="Admin" icon="shield" href="/roles/admin">
+    Platform administrators. Complete catalog management, analysis regeneration, and audit log access.
+  </Card>
+</Columns>
+
+## Role definition in the database
+
+The role for each user is stored as an `ENUM` column in the `usuarios` table:
+
+```sql schema.sql
+rol ENUM('invitado','registrado','admin') NOT NULL DEFAULT 'registrado'
+```
+
+The default value is `'registrado'`, so every new account created through the registration flow receives registered-user permissions immediately. The `'invitado'` value is reserved for anonymous access patterns. The `'admin'` role must be assigned directly in the database — there is no self-service path to become an admin.
+
+## Permission comparison
+
+| Capability | Guest | Registered | Admin |
+|---|:---:|:---:|:---:|
+| Search the movie catalog | ✓ | ✓ | ✓ |
+| View existing analyses | ✓ | ✓ | ✓ |
+| Generate new AI analyses | — | ✓ | ✓ |
+| Save favorites | — | ✓ | ✓ |
+| View search history | — | ✓ | ✓ |
+| Personalized recommendations | — | ✓ | ✓ |
+| Manage the movie catalog | — | — | ✓ |
+| Force-regenerate analyses | — | — | ✓ |
+| View admin audit log | — | — | ✓ |
+
+## How roles are enforced
+
+Role enforcement happens at the middleware layer in the Express backend, before any controller logic runs.
+
+**`authMiddleware.js`** — validates the JWT on every protected route. If the token is missing or invalid, the request is rejected with `401 Unauthorized`. On success, the decoded user payload (including `rol`) is attached to `req.user`.
+
+**`adminOnly.js`** — runs after `authMiddleware` on admin-only routes. It checks that `req.user.rol === 'admin'`. If the check fails, the request is rejected with `403 Forbidden`.
+
+```
+Request
+  └── authMiddleware  →  validates JWT, attaches req.user
+        └── adminOnly  →  checks req.user.rol === 'admin'
+              └── controller
+```
+
+Routes that serve public data (such as `GET /api/peliculas/*` and `GET /api/analisis/:peliculaId`) do not require the `authMiddleware`, so guests can access them without a token.

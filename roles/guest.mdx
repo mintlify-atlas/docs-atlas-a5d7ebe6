@@ -1,0 +1,53 @@
+---
+title: "Guest access"
+description: "What unauthenticated users can do in Magic Film"
+---
+
+Guests (invitados) are unauthenticated visitors. No account or token is needed to start exploring Magic Film — the catalog and its existing analyses are open to everyone.
+
+<Note>
+  Any analysis already stored in the database is free to read for all visitors. Magic Film pre-caches analyses so guests can access the full depth of existing content without creating an account.
+</Note>
+
+## What you can do
+
+<Columns cols={2}>
+  <Card title="Search the catalog" icon="magnifying-glass">
+    Search for any film by title. Results are served from the `catalogo_peliculas` table via `GET /api/peliculas/*`.
+  </Card>
+  <Card title="Browse analyses" icon="book-open">
+    Read any analysis that has already been generated and stored. Served via `GET /api/analisis/:peliculaId` — no token required.
+  </Card>
+</Columns>
+
+## What requires registration
+
+<Columns cols={2}>
+  <Card title="Generate new analyses" icon="sparkles">
+    Triggering a new AI analysis (`POST /api/analisis/generar`) requires authentication. Registered users only.
+  </Card>
+  <Card title="Save favorites" icon="bookmark">
+    Adding a film to your saved list requires an account linked to your `favoritos` table entries.
+  </Card>
+  <Card title="Search history" icon="clock-rotate-left">
+    Your search history is tracked in `historial_busquedas` and is only available to authenticated users.
+  </Card>
+  <Card title="Personalized recommendations" icon="wand-magic-sparkles">
+    Recommendations are derived from your `nivel_cinefilo` and favorite genres — both require a completed profile.
+  </Card>
+</Columns>
+
+## How guest access works
+
+The following endpoints are **publicly accessible** — they do not run `authMiddleware` and accept requests without a `Authorization` header:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/peliculas/*` | Search and browse the movie catalog |
+| `GET` | `/api/analisis/:peliculaId` | Read an existing analysis for a film |
+
+All other endpoints that modify data or access personal information require a valid JWT.
+
+## Ready to unlock full access?
+
+Creating an account takes less than a minute. [Register as a user](/roles/registered) to generate analyses, save favorites, and get personalized recommendations.

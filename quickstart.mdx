@@ -1,80 +1,143 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get Magic Film running locally in under 10 minutes"
 ---
 
-## Get started in three steps
+<Note>
+  Magic Film is currently at **version 0.1 (interactive mockup)**. The backend, API integrations, and database connection are under active development. Some steps below describe functionality that is scaffolded but not yet fully operational.
+</Note>
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have the following:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- **Node.js 18+** — [nodejs.org](https://nodejs.org)
+- **MySQL 8+** — [mysql.com](https://mysql.com)
+- **TMDB API key** — Create a free account at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+- **Google Gemini API key** — Generate one at [aistudio.google.com](https://aistudio.google.com)
 
-### Step 2: Deploy your changes
+## Setup steps
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Michael5006/magic-film.git
+    cd magic-film
+    ```
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Install dependencies">
+    From the project root, install the backend Node.js packages:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash
+    npm install
+    ```
+  </Step>
 
-### Step 3: Go live
+  <Step title="Configure environment variables">
+    Copy the example file and fill in your values:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```bash
+    cp .env.example .env
+    ```
 
-## Next steps
+    Open `.env` and replace the placeholder values:
 
-Now that you have your docs running, explore these key features:
+    ```bash .env
+    # ── SERVER ────────────────────────────────────
+    PORT=3000
+    NODE_ENV=development
+
+    # ── DATABASE ──────────────────────────────────
+    DB_HOST=localhost
+    DB_PORT=3306
+    DB_NAME=magic_film
+    DB_USER=root
+    DB_PASSWORD=password_aqui
+
+    # ── EXTERNAL APIs ─────────────────────────────
+    # Get your key at: https://www.themoviedb.org/settings/api
+    TMDB_API_KEY=clave_tmdb_aqui
+    TMDB_BASE_URL=https://api.themoviedb.org/3
+
+    # Get your key at: https://aistudio.google.com
+    GEMINI_API_KEY=clave_gemini_aqui
+    GEMINI_MODEL=gemini-1.5-flash
+
+    # ── SECURITY ──────────────────────────────────
+    JWT_SECRET=your_strong_secret_here
+    JWT_EXPIRES_IN=7d
+    ```
+
+    Replace `password_aqui`, `clave_tmdb_aqui`, `clave_gemini_aqui`, and `your_strong_secret_here` with your actual values.
+  </Step>
+
+  <Step title="Create the database">
+    Connect to your MySQL instance and create the database:
+
+    ```sql
+    CREATE DATABASE IF NOT EXISTS magic_filmv01
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+    ```
+
+    Or use the MySQL CLI:
+
+    ```bash
+    mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS magic_filmv01 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    ```
+  </Step>
+
+  <Step title="Run the database schema">
+    Apply the schema to create all tables, indexes, and seed data:
+
+    ```bash
+    mysql -u root -p magic_filmv01 < database/schema.sql
+    ```
+
+    This creates all required tables (`usuarios`, `peliculas`, `analisis`, `capas_analisis`, `favoritos`, and more) and inserts the initial genre list and default admin user.
+  </Step>
+
+  <Step title="Start the backend server">
+    ```bash
+    npm start
+    ```
+
+    Or run directly with Node:
+
+    ```bash
+    node backend/server.js
+    ```
+
+    The server will start on `http://localhost:3000` (or the `PORT` value from your `.env`).
+  </Step>
+
+  <Step title="Open the frontend">
+    The frontend is a static HTML/CSS/JS application. Open the entry point directly in your browser:
+
+    ```bash
+    open frontend/pages/index.html
+    ```
+
+    On Linux or Windows, navigate to `frontend/pages/index.html` in your file manager or open it from your browser with `File > Open`.
+
+    Alternatively, if the backend serves static files, visit `http://localhost:3000` directly.
+  </Step>
+</Steps>
+
+## What's next
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand the 3-layer MVC structure and data flow.
+  </Card>
+  <Card title="Environment variables" icon="key" href="/setup/environment-variables">
+    Full reference for every `.env` configuration option.
+  </Card>
+  <Card title="Database" icon="database" href="/setup/database">
+    Explore the schema tables and relationships.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/overview">
+    Browse the full REST API surface.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

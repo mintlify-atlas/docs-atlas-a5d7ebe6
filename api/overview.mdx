@@ -1,0 +1,93 @@
+---
+title: "API overview"
+description: "Base URL, authentication, response format, and error handling for the Magic Film REST API"
+---
+
+The Magic Film API is a REST API built with Node.js and Express. All requests and responses use JSON. The API is organized into five groups: Auth, Movies, Analysis, Users, and Admin.
+
+## Base URL
+
+| Environment | Base URL |
+|-------------|----------|
+| Development | `http://localhost:3000/api` |
+| Production | `https://magic-film.vercel.app/api` |
+
+<Note>
+  Production deployment is pending. The production URL will serve the full backend once the API integration phase is complete. See the [project status](/introduction#project-status) for current progress.
+</Note>
+
+## Authentication
+
+Protected routes require a JWT bearer token in the `Authorization` header:
+
+```http
+Authorization: Bearer <your_token>
+```
+
+You receive a token when you register (`POST /api/auth/register`) or log in (`POST /api/auth/login`). Tokens are valid for 7 days.
+
+Routes that require authentication return `401 Unauthorized` if no valid token is provided. Routes restricted to admin users return `403 Forbidden` for non-admin authenticated users.
+
+## Response format
+
+All successful responses follow this shape:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Optional message"
+}
+```
+
+Error responses follow this shape:
+
+```json
+{
+  "success": false,
+  "error": "Human-readable error description",
+  "code": 400
+}
+```
+
+## HTTP status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `201` | Resource created |
+| `400` | Bad request — missing or invalid fields |
+| `401` | Unauthorized — missing or invalid token |
+| `403` | Forbidden — admin role required |
+| `404` | Not found |
+| `409` | Conflict — resource already exists |
+| `500` | Server error |
+
+## Rate limiting
+
+The API relies on two external services that impose their own rate limits:
+
+- **TMDB API** — rate limits apply per API key on search and metadata queries.
+- **Google Gemini API** — rate limits apply per API key on analysis generation.
+
+Magic Film mitigates this with a database cache layer: once a film has been analysed, subsequent requests are served from MySQL with no Gemini call. Search results are cached in the `catalogo_peliculas` table.
+
+## Endpoint groups
+
+<CardGroup cols={2}>
+  <Card title="Auth" icon="lock" href="/api/auth">
+    Register and log in. Obtain tokens for authenticated requests.
+  </Card>
+  <Card title="Movies" icon="film" href="/api/movies">
+    Search the catalog and retrieve detailed movie data.
+  </Card>
+  <Card title="Analysis" icon="brain" href="/api/analysis">
+    Generate and retrieve AI-powered cinematographic analysis.
+  </Card>
+  <Card title="Users" icon="user" href="/api/users">
+    Manage your profile, favorites, and preferences.
+  </Card>
+  <Card title="Admin" icon="shield" href="/api/admin">
+    Catalog management and analysis regeneration. Admin role required.
+  </Card>
+</CardGroup>

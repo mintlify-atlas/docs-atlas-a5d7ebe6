@@ -1,0 +1,166 @@
+---
+title: "Google Gemini AI"
+description: "AI-powered movie analysis using Google Gemini 1.5 Flash"
+---
+
+Magic Film uses Google Gemini 1.5 Flash to generate structured cinematographic analysis in Spanish. All Gemini API calls are handled by `backend/services/geminiService.js`. The frontend never calls Gemini directly.
+
+<Note>
+  Analysis is generated in Spanish only. The `analisis.idioma` column is fixed at `es` in the current version. Multi-language support is not yet implemented.
+</Note>
+
+## What Gemini does
+
+Given a film's metadata (title, synopsis, genres, keywords, budget, director, and runtime) retrieved from TMDB, Gemini generates a structured cinematographic analysis. The analysis is broken into discrete layers depending on the mode assigned by the classifier:
+
+<Tabs>
+  <Tab title="Entertainment mode">
+    Four layers aimed at casual viewers:
+
+    <CardGroup cols={2}>
+      <Card title="Resumen" icon="book-open">
+        A spoiler-free summary of the film's premise and tone.
+      </Card>
+      <Card title="Momentos" icon="bolt">
+        Standout scenes and sequences that define the viewing experience.
+      </Card>
+      <Card title="Easter eggs" icon="egg">
+        Hidden references, callbacks, and in-jokes embedded in the film.
+      </Card>
+      <Card title="Curiosidades" icon="lightbulb">
+        Production trivia — behind-the-scenes facts, casting decisions, and filming details.
+      </Card>
+    </CardGroup>
+  </Tab>
+  <Tab title="Deep mode (Profundo)">
+    Five layers for analytical viewers:
+
+    <CardGroup cols={2}>
+      <Card title="Narrativa" icon="brain">
+        Deep read of narrative structure, character arcs, and thematic throughlines.
+      </Card>
+      <Card title="Simbolismo" icon="puzzle-piece">
+        Visual symbolism, recurring motifs, and what they signify.
+      </Card>
+      <Card title="Contexto" icon="globe">
+        Cultural, historical, and social context of the film.
+      </Card>
+      <Card title="Técnica" icon="video">
+        Cinematography, editing rhythm, sound design, and directorial choices.
+      </Card>
+      <Card title="Conclusión" icon="flag">
+        A synthesizing interpretive statement that ties the analysis together.
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## Environment variables
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Your Google AI Studio API key | Yes | *(none)* |
+| `GEMINI_MODEL` | Gemini model ID to use | No | `gemini-1.5-flash` |
+
+## Getting your API key
+
+<Steps>
+  <Step title="Open Google AI Studio">
+    Go to [aistudio.google.com](https://aistudio.google.com) and sign in with your Google account.
+  </Step>
+  <Step title="Create an API key">
+    Click **Get API key** → **Create API key**. Copy the generated key.
+  </Step>
+  <Step title="Add the key to your .env">
+    ```bash .env
+    GEMINI_API_KEY=your_gemini_api_key_here
+    GEMINI_MODEL=gemini-1.5-flash
+    ```
+  </Step>
+  <Step title="Restart the server">
+    Restart the backend so it picks up the new key. Analysis generation will now work on the first uncached request.
+  </Step>
+</Steps>
+
+## Analysis generation flow
+
+```text
+User requests analysis for a film
+        ↓
+DB check: does analisis row exist with estado = 'completo'?
+   ├── YES → return capas_analisis rows directly (no Gemini call)
+   └── NO  → continue
+        ↓
+clasificadorService.js evaluates genres + keywords
+→ assigns 'entretenimiento' or 'profundo'
+        ↓
+geminiService.js constructs a prompt from:
+  - film title and original title
+  - synopsis
+  - director, year, runtime
+  - genres
+  - TMDB keywords
+  - tipo_analisis (mode)
+        ↓
+Gemini 1.5 Flash generates structured Spanish text
+        ↓
+Response parsed into individual layers
+        ↓
+Layers saved to capas_analisis (one row per layer)
+analisis.estado updated to 'completo'
+log_ia row created
+        ↓
+Structured analysis returned to the frontend
+```
+
+## Prompt structure
+
+The prompt sent to Gemini is constructed at runtime from the movie's data. It is not hardcoded — `geminiService.js` assembles it using the film's title, synopsis, director, genres, keywords from TMDB, and the `tipo_analisis` mode assigned by the classifier. The prompt instructs Gemini to respond in Spanish with each layer clearly delimited so the response can be parsed and stored as individual `capas_analisis` rows.
+
+## Caching behavior
+
+Gemini is called **at most once per film**. Once an analysis is stored in the database with `estado = 'completo'`, all subsequent requests for the same film are served entirely from MySQL.
+
+The only way to trigger a new Gemini call for a film that already has a complete analysis is for an admin to use the `regenerar_ia` action, which resets the `analisis` row and clears the associated `capas_analisis` rows.
+
+<Warning>
+  Each analysis generation is a paid Gemini API call. Avoid triggering unnecessary regenerations during development. Test your flow using films that are already cached in the database, or check the `log_ia` table to monitor usage.
+</Warning>
+
+## Monitoring with log_ia
+
+Every time Gemini is called, the backend inserts a row into the `log_ia` table:
+
+```sql
+CREATE TABLE log_ia (
+  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  analisis_id      INT UNSIGNED,
+  prompt_usado     TEXT,
+  tokens_estimados INT,
+  tiempo_ms        INT,
+  creado_en        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+| Column | Description |
+|---|---|
+| `analisis_id` | References the `analisis` row this call generated |
+| `prompt_usado` | The full prompt sent to Gemini |
+| `tokens_estimados` | Estimated token count for cost tracking |
+| `tiempo_ms` | Response time in milliseconds |
+
+Query this table to audit costs, debug slow generations, or review the prompts being sent:
+
+```sql
+SELECT
+  l.id,
+  p.titulo,
+  l.tokens_estimados,
+  l.tiempo_ms,
+  l.creado_en
+FROM log_ia l
+JOIN analisis a ON a.id = l.analisis_id
+JOIN peliculas p ON p.id = a.pelicula_id
+ORDER BY l.creado_en DESC
+LIMIT 20;
+```

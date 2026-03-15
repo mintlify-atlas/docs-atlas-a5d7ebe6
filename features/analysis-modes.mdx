@@ -1,0 +1,139 @@
+---
+title: "Analysis modes"
+description: "How Magic Film's adaptive AI classifier works"
+---
+
+Magic Film automatically classifies every film into one of two analysis modes before generating any content. The mode determines the structure, depth, and focus of the AI-generated analysis.
+
+<Note>
+  All analysis content is generated in Spanish by Google Gemini 1.5 Flash and stored in the `capas_analisis` table. The language is fixed at `es` in the `analisis` record.
+</Note>
+
+## How classification works
+
+When a user requests an analysis, the backend runs the following sequence:
+
+```
+Backend receives pelicula_id
+        ↓
+Queries TMDB for genres + keywords
+        ↓
+clasificadorService.js evaluates the data
+        ↓
+Assigns mode: 'entretenimiento' or 'profundo'
+        ↓
+Does analisis row exist for this pelicula_id?
+   ├── YES → return cached capas_analisis rows  (fast, no Gemini cost)
+   └── NO  → call Gemini → save analisis + capas_analisis → return
+```
+
+The classifier uses TMDB genre IDs and keyword signals to determine mode. Films with arthouse, folk horror, psychological, or documentary signals are routed to Deep mode. Blockbusters, comedies, and mainstream action titles go to Entertainment mode.
+
+<Tip>
+  Admins can override the automatic classification by setting `tipo_forzado = TRUE` on the `peliculas` row. This forces the stored `tipo_analisis` value regardless of what the classifier would assign.
+</Tip>
+
+## The two modes
+
+<Tabs>
+  <Tab title="Entertainment">
+    **Target films:** Blockbusters, comedies, mainstream action, horror franchises
+
+    Entertainment mode focuses on the audience experience — what makes the film fun, rewatchable, and culturally resonant. The AI generates five thematic layers designed for casual viewers who want to enjoy and share what they know about a film.
+
+    <CardGroup cols={2}>
+      <Card title="Resumen" icon="book-open">
+        A spoiler-free summary of the film's premise and tone. Sets context without revealing key plot turns.
+      </Card>
+      <Card title="Momentos" icon="bolt">
+        Epic moments — the scenes and sequences that define the viewing experience. Timecoded highlights for rewatching.
+      </Card>
+      <Card title="Easter eggs" icon="egg">
+        Hidden references, callbacks, and in-jokes embedded in the film. Rewards attentive viewers on second watch.
+      </Card>
+      <Card title="Curiosidades" icon="lightbulb">
+        Production trivia — behind-the-scenes facts, casting decisions, filming locations, and budget details.
+      </Card>
+    </CardGroup>
+  </Tab>
+
+  <Tab title="Deep (Profundo)">
+    **Target films:** Auteur cinema, art house, folk horror, psychological dramas, documentaries
+
+    Deep mode treats the film as a text to be decoded. The AI generates five analytical layers for viewers who want to understand what a film *means* — not just what happens in it.
+
+    <CardGroup cols={2}>
+      <Card title="Narrativa" icon="brain">
+        A deep-read of the film's narrative structure, character arcs, and thematic throughlines.
+      </Card>
+      <Card title="Simbolismo" icon="puzzle-piece">
+        Visual symbolism and recurring motifs — colors, objects, framing choices, and what they signify.
+      </Card>
+      <Card title="Contexto" icon="globe">
+        Cultural, historical, and social context. Situates the film within its broader moment and tradition.
+      </Card>
+      <Card title="Técnica" icon="video">
+        Director technique — cinematography style, editing rhythm, sound design, and signature choices.
+      </Card>
+      <Card title="Conclusión" icon="flag">
+        A synthesizing conclusion that ties the analysis together into a final interpretive statement.
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## Database storage
+
+Each analysis is stored across two tables:
+
+**`analisis`** — one row per film, tracks generation state:
+
+```sql
+CREATE TABLE analisis (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pelicula_id   INT UNSIGNED NOT NULL UNIQUE,
+  tipo          ENUM('entretenimiento','profundo') NOT NULL,
+  modelo_ia     VARCHAR(100) DEFAULT 'gemini-1.5-flash',
+  estado        ENUM('pendiente','generando','completo','error') DEFAULT 'pendiente',
+  idioma        VARCHAR(5) DEFAULT 'es',
+  generado_en   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**`capas_analisis`** — one row per layer, holds the AI-generated content:
+
+```sql
+CREATE TABLE capas_analisis (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  analisis_id  INT UNSIGNED NOT NULL,
+  modo         ENUM('entretenimiento','profundo') NOT NULL,
+  nombre_capa  ENUM(
+    'resumen','momentos','easter_eggs','curiosidades',
+    'narrativa','simbolismo','contexto','tecnica','conclusion'
+  ) NOT NULL,
+  contenido    LONGTEXT NOT NULL,
+  orden        TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_analisis_capa (analisis_id, nombre_capa)
+);
+```
+
+The `UNIQUE KEY` on `(analisis_id, nombre_capa)` prevents duplicate layers from being written on concurrent requests.
+
+## Caching behavior
+
+Before calling Gemini, the backend checks whether a complete `analisis` row exists for the requested `pelicula_id`. If it does, all `capas_analisis` rows are returned directly from MySQL — no Gemini call is made. This keeps response times fast and API costs near zero for popular films.
+
+If the analysis is in `estado = 'generando'`, the request will wait or return a pending response rather than triggering a duplicate Gemini call.
+
+## Admin override
+
+The `tipo_forzado` field on the `peliculas` table lets admins lock a film to a specific mode:
+
+```sql
+-- Force Scary Movie into Deep mode (unusual, but possible)
+UPDATE peliculas
+SET tipo_analisis = 'profundo', tipo_forzado = TRUE
+WHERE id = 42;
+```
+
+When `tipo_forzado = TRUE`, the classifier result is ignored and the stored `tipo_analisis` value is used instead. This is logged in the `historial_admin` table under the `modificar` action.

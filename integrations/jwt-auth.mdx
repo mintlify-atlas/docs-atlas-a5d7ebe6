@@ -1,0 +1,135 @@
+---
+title: "JWT authentication"
+description: "How Magic Film handles authentication and authorization with JSON Web Tokens"
+---
+
+Magic Film uses JSON Web Tokens (JWT) for stateless authentication. No sessions are stored server-side — the token itself carries the user's identity and role, and it is verified on every protected request.
+
+## Environment variables
+
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `JWT_SECRET` | Secret key used to sign and verify tokens | Yes | *(none)* |
+| `JWT_EXPIRES_IN` | Token lifetime. Accepts `ms`-compatible values (e.g. `7d`, `2h`, `30m`) | No | `7d` |
+
+<Warning>
+  Never use a weak or guessable value for `JWT_SECRET` in production. Anyone who knows this value can forge valid tokens for any user, including admins. Generate a strong secret before deploying:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+  ```
+
+  The `.env.example` file ships with a placeholder secret. **Replace it before going live.**
+</Warning>
+
+## Token issuance
+
+A token is issued when a user successfully authenticates via `POST /api/auth/login`. The response includes the signed JWT:
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "rol": "registrado"
+  }
+}
+```
+
+## Token payload
+
+The decoded JWT payload contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | User ID from the `usuarios` table |
+| `email` | string | User's email address |
+| `rol` | string | User role: `invitado`, `registrado`, or `admin` |
+
+## Using the token
+
+Include the token in every request to a protected route using the `Authorization` header:
+
+```http
+Authorization: Bearer <your-jwt-token>
+```
+
+**Example with curl:**
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  https://your-api.com/api/users/me
+```
+
+**Example with the Fetch API:**
+
+```javascript
+const response = await fetch('/api/users/me', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+```
+
+<Note>
+  Guest endpoints — such as movie search and viewing analyses — do not require a token. Only endpoints that create, modify, or access user-specific data require authentication.
+</Note>
+
+## Middleware
+
+Magic Film uses two auth middlewares, both defined in `backend/middlewares/`.
+
+### authMiddleware.js
+
+Validates the JWT on protected routes. When a valid token is present, it decodes the payload and attaches it to the request object so downstream handlers can read the user's identity:
+
+```javascript
+// After authMiddleware runs, the controller can access:
+req.user.id    // user ID
+req.user.email // user email
+req.user.rol   // 'invitado' | 'registrado' | 'admin'
+```
+
+If the token is missing, malformed, or expired, `authMiddleware` returns a `401 Unauthorized` response before the controller is reached.
+
+### adminOnly.js
+
+An additional middleware that runs **after** `authMiddleware`. It checks that `req.user.rol === 'admin'`. If the user is not an admin, it returns `403 Forbidden`.
+
+## Middleware chain
+
+Routes compose middlewares in order. The chain for a typical endpoint looks like this:
+
+```text
+HTTP request
+     ↓
+ authMiddleware       ← validates JWT, attaches req.user
+     ↓ (if valid)
+ adminOnly            ← checks req.user.rol === 'admin'  (admin routes only)
+     ↓ (if authorized)
+ controller           ← handles the business logic
+     ↓
+HTTP response
+```
+
+**Example route definitions:**
+
+```javascript
+// Registered user — JWT required
+router.get('/api/users/me', authMiddleware, userController.getProfile);
+
+// Admin only — JWT required + admin role check
+router.post('/api/admin/movies', authMiddleware, adminOnly, adminController.addMovie);
+
+// Public — no middleware needed
+router.get('/api/movies/search', movieController.search);
+```
+
+## Role reference
+
+| Role | Description |
+|---|---|
+| `invitado` | Guest. Can search and view analyses. No token required for guest-accessible routes. |
+| `registrado` | Registered user. Can save favorites, view history, and manage their profile. Requires a valid JWT. |
+| `admin` | Administrator. Full access including movie management and AI regeneration. Requires a valid JWT and `adminOnly` middleware. |

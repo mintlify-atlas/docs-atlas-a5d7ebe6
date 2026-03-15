@@ -1,0 +1,266 @@
+---
+title: "Admin endpoints"
+description: "Movie catalog management and analysis regeneration (admin only)"
+---
+
+Admin endpoints provide catalog management and analysis regeneration capabilities. All admin routes are protected by two middleware layers: authentication (`authMiddleware.js`) and role check (`adminOnly.js`).
+
+<Warning>
+  All endpoints on this page require the `admin` role. Authenticated users with the `registrado` role receive a `403 Forbidden` response. The admin role can only be assigned directly in the database.
+</Warning>
+
+---
+
+## GET /api/admin/peliculas
+
+List all movies in the catalog with pagination.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for an admin account.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Number of results per page.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="peliculas" type="object[]">
+      Array of movie records for this page.
+    </ResponseField>
+    <ResponseField name="total" type="number">
+      Total number of movies in the catalog.
+    </ResponseField>
+    <ResponseField name="page" type="number">
+      Current page number.
+    </ResponseField>
+    <ResponseField name="limit" type="number">
+      Results per page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl --request GET \
+  --url 'http://localhost:3000/api/admin/peliculas?page=1&limit=20' \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "peliculas": [
+      {
+        "id": 1,
+        "titulo": "Midsommar",
+        "anio": 2019,
+        "tipo_analisis": "profundo",
+        "activa": true
+      }
+    ],
+    "total": 84,
+    "page": 1,
+    "limit": 20
+  }
+}
+```
+
+---
+
+## POST /api/admin/peliculas
+
+Add a new movie to the catalog manually. This is used to seed movies that may not yet be in the TMDB pipeline, or to force a specific analysis type.
+
+This action is logged to `historial_admin` with the `agregar` action type.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for an admin account.
+</ParamField>
+
+### Request body
+
+<ParamField body="titulo" type="string" required>
+  Movie title.
+</ParamField>
+
+<ParamField body="tipo_analisis" type="string" required>
+  Analysis type to assign. Accepted values: `entretenimiento`, `profundo`.
+</ParamField>
+
+<ParamField body="titulo_original" type="string">
+  Original language title.
+</ParamField>
+
+<ParamField body="tmdb_id" type="integer">
+  TMDB identifier, if available.
+</ParamField>
+
+<ParamField body="anio" type="integer">
+  Release year.
+</ParamField>
+
+<ParamField body="director" type="string">
+  Director name.
+</ParamField>
+
+<ParamField body="duracion_min" type="integer">
+  Runtime in minutes.
+</ParamField>
+
+<ParamField body="sinopsis" type="string">
+  Plot synopsis.
+</ParamField>
+
+<ParamField body="calificacion" type="number">
+  Rating on a 0–10 scale.
+</ParamField>
+
+<ParamField body="poster_url" type="string">
+  Full URL to the movie poster image.
+</ParamField>
+
+<ParamField body="tipo_forzado" type="boolean" default="false">
+  When `true`, the `tipo_analisis` value is locked and the automatic classifier will not override it.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the movie is created.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  The newly created movie record.
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">
+      Internal ID assigned to the new movie.
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Movie title.
+    </ResponseField>
+    <ResponseField name="tipo_analisis" type="string">
+      Analysis type: `entretenimiento` or `profundo`.
+    </ResponseField>
+    <ResponseField name="tipo_forzado" type="boolean">
+      Whether the analysis type is locked.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl --request POST \
+  --url http://localhost:3000/api/admin/peliculas \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "titulo": "Annihilation",
+    "titulo_original": "Annihilation",
+    "tmdb_id": 300668,
+    "anio": 2018,
+    "director": "Alex Garland",
+    "duracion_min": 115,
+    "calificacion": 7.3,
+    "tipo_analisis": "profundo",
+    "tipo_forzado": true
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 85,
+    "titulo": "Annihilation",
+    "tipo_analisis": "profundo",
+    "tipo_forzado": true
+  }
+}
+```
+
+---
+
+## PUT /api/admin/analisis/:id/regenerar
+
+Delete the existing analysis layers for a movie and regenerate them using Google Gemini. Use this to fix failed analyses or refresh outdated content.
+
+This action deletes all rows in `capas_analisis` for the given analysis, resets the `estado` to `pendiente`, calls Gemini with the appropriate prompt, and saves the new layers. The action is logged to `historial_admin` with the `regenerar_ia` action type.
+
+### Request headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for an admin account.
+</ParamField>
+
+### Path parameters
+
+<ParamField path="id" type="integer" required>
+  ID of the `analisis` record to regenerate. This is the analysis ID, not the movie ID.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when regeneration completes.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  The updated analysis record with regenerated layers. Same shape as the `POST /api/analisis/generar` response.
+</ResponseField>
+
+### Errors
+
+| Status | Description |
+|--------|-------------|
+| `404` | No analysis found with the given ID. |
+| `500` | Gemini API call failed during regeneration. |
+
+### Example
+
+```bash
+curl --request PUT \
+  --url http://localhost:3000/api/admin/analisis/7/regenerar \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "analisis": {
+      "id": 7,
+      "tipo": "profundo",
+      "estado": "completo",
+      "generado_en": "2026-03-15T14:00:00.000Z"
+    },
+    "capas": [
+      {
+        "nombre_capa": "narrativa",
+        "contenido": "Regenerated analysis content...",
+        "orden": 1,
+        "modo": "profundo"
+      }
+    ]
+  }
+}
+```
